@@ -1,13 +1,15 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.InputSystem;
 
 namespace FateGames.Core
 {
-    public class Swerve
+    public class Swerve : MonoBehaviour
     {
-        public readonly float Size;
+        [SerializeField] protected int Size;
         public Vector2 AnchorPosition { get; protected set; } = Vector2.zero;
         public Vector2 MousePosition { get; protected set; } = Vector2.zero;
         public Vector2 Difference { get => MousePosition - AnchorPosition; }
@@ -19,35 +21,27 @@ namespace FateGames.Core
         public readonly UnityEvent OnSwerve = new();
         public readonly UnityEvent OnRelease = new();
 
-        public Swerve(float size)
-        {
-            Size = size;
-            UnityEvent mouseButtonDownEvent = InputManager.GetKeyDownEvent(KeyCode.Mouse0);
-            UnityEvent mouseButtonEvent = InputManager.GetKeyEvent(KeyCode.Mouse0);
-            UnityEvent mouseButtonUpEvent = InputManager.GetKeyUpEvent(KeyCode.Mouse0);
 
-            mouseButtonDownEvent.AddListener(OnMouseButtonDown);
-            mouseButtonEvent.AddListener(OnMouseButton);
-            mouseButtonUpEvent.AddListener(OnMouseButtonUp);
-        }
-
-        protected virtual void OnMouseButtonDown()
+        protected virtual void OnMouseButtonDown(InputAction.CallbackContext context)
         {
-            AnchorPosition = Input.mousePosition;
-            MousePosition = Input.mousePosition;
+            print("Touch Down");
+            MousePosition = Mouse.current.position.ReadValue();
+            AnchorPosition = MousePosition;
             OnStart.Invoke();
         }
 
-        protected virtual void OnMouseButton()
+        protected virtual void OnMouseButton(InputAction.CallbackContext context)
         {
-            Vector2 mousePosition = Input.mousePosition;
+            print("Touch");
+            Vector2 mousePosition = context.ReadValue<Vector2>();
             Vector2 direction = (mousePosition - AnchorPosition).normalized;
             MousePosition = AnchorPosition + direction * Mathf.Clamp((mousePosition - AnchorPosition).magnitude, 0, Size);
             OnSwerve.Invoke();
         }
 
-        protected virtual void OnMouseButtonUp()
+        protected virtual void OnMouseButtonUp(InputAction.CallbackContext context)
         {
+            print("Touch Up");
             OnRelease.Invoke();
         }
 

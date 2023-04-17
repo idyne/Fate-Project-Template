@@ -6,7 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/FateGames/Core/Bootloader/Bootloader.unity
+    path: Assets/FateGames/Core/Bootstrap/Bootstrap.unity
     guid: 42d4469b68d16414a8bb332c68632f5e
   - enabled: 1
     path: Assets/Game/Level_1.unity

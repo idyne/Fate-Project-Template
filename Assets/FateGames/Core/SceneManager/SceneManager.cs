@@ -4,15 +4,24 @@ using UnityEditor;
 using UnityEngine;
 namespace FateGames.Core
 {
-    [CreateAssetMenu(menuName = "Fate/Manager/SceneManager")]
-    public class SceneManager : ScriptableObject
+    public class SceneManager
     {
-        [SerializeField] private int firstLevelSceneIndex = 1;
-        [SerializeField] private bool loop;
-        [SerializeField] private SaveDataVariable saveData;
-        [SerializeField] private GameObject sceneBootloaderPrefab;
-        [SerializeField] private GameObject loadingScreenPrefab;
-        [SerializeField] private GameStateVariable gameState;
+        private GameStateVariable gameState;
+        private int firstLevelSceneIndex;
+        private bool loop;
+        private SaveDataVariable saveData;
+        private GameObject loadingScreenPrefab;
+
+
+        public SceneManager(GameStateVariable gameState, int firstLevelSceneIndex, bool loop, SaveDataVariable saveData, GameObject loadingScreenPrefab)
+        {
+            this.gameState = gameState;
+            this.firstLevelSceneIndex = firstLevelSceneIndex;
+            this.loop = loop;
+            this.saveData = saveData;
+            this.loadingScreenPrefab = loadingScreenPrefab;
+        }
+
         private int levelCount { get => UnityEngine.SceneManagement.SceneManager.sceneCountInBuildSettings - firstLevelSceneIndex; }
         public bool IsLevel(UnityEngine.SceneManagement.Scene scene) => scene.buildIndex >= firstLevelSceneIndex;
         private int currentLevelSceneIndex
@@ -29,11 +38,6 @@ namespace FateGames.Core
             }
         }
 
-        public void Initialize()
-        {
-            Instantiate(sceneBootloaderPrefab);
-        }
-
         public void LoadCurrentLevel(bool async = true)
         {
             LoadScene(currentLevelSceneIndex, async);
@@ -45,7 +49,7 @@ namespace FateGames.Core
                 throw new System.ArgumentOutOfRangeException();
             gameState.Value = GameState.LOADING;
             if (async)
-                RoutineRunner.StartRoutine(LoadSceneAsynchronouslyRoutine(sceneIndex));
+                GameManager.Instance.StartCoroutine (LoadSceneAsynchronouslyRoutine(sceneIndex));
             else UnityEngine.SceneManagement.SceneManager.LoadScene(sceneIndex);
         }
 
@@ -53,7 +57,7 @@ namespace FateGames.Core
         {
             if (sceneIndex < 0 || sceneIndex >= UnityEngine.SceneManagement.SceneManager.sceneCountInBuildSettings)
                 throw new System.ArgumentOutOfRangeException();
-            Instantiate(loadingScreenPrefab);
+            Object.Instantiate(loadingScreenPrefab);
             AsyncOperation operation = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(sceneIndex);
             while (!operation.isDone)
             {

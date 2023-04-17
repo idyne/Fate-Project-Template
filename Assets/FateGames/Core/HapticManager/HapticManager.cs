@@ -1,13 +1,20 @@
-//using Lofelt.NiceVibrations;
+using Lofelt.NiceVibrations;
 using UnityEngine;
 namespace FateGames.Core
 {
-    public static class HapticManager
+    public class HapticManager
     {
-        public static void PlayHaptic(/*HapticPatterns.PresetType presetType = HapticPatterns.PresetType.LightImpact*/)
+        private BoolVariable vibrationOn;
+
+        public HapticManager(BoolVariable vibrationOn)
         {
-            Debug.LogError("Import Lofelt.NiceVibrations package from package manager and call HapticPatterns.PlayPreset instead!");
-            //HapticPatterns.PlayPreset(presetType);
+            this.vibrationOn = vibrationOn;
+        }
+
+        public void PlayHaptic(HapticPatterns.PresetType presetType = HapticPatterns.PresetType.LightImpact)
+        {
+            if (!vibrationOn.Value) return;
+            HapticPatterns.PlayPreset(presetType);
         }
 
     }

@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace FateGames.Core
 {
-    public class SoundWorker : MonoBehaviourWithCachedTransform
+    public class SoundWorker : FateMonoBehaviour
     {
         [SerializeField] private BoolVariable soundOn;
         [SerializeField] private WorkingSoundWorkerSet workingSet;

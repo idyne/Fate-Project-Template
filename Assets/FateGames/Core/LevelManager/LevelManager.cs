@@ -5,17 +5,23 @@ using UnityEditor;
 using UnityEngine.Events;
 namespace FateGames.Core
 {
-    [CreateAssetMenu(menuName = "Fate/Manager/LevelManager")]
-    public class LevelManager : ScriptableObject
+
+    public class LevelManager
     {
+        private GameObject loseScreen, winScreen;
+        private GameStateVariable gameState;
+        private UnityEvent OnLevelStarted, OnLevelCompleted, OnLevelFailed, OnLevelWon;
 
-        [SerializeField] private bool autoStart = false;
-        [SerializeField] private SaveDataVariable saveData;
-        [SerializeField] private GameObject loseScreen, winScreen;
-        [SerializeField] private GameStateVariable gameState;
-        [SerializeField] private UnityEvent OnLevelStarted, OnLevelFinished, OnLevelFailed, OnLevelWon;
-
-        public bool AutoStart { get => autoStart; }
+        public LevelManager(GameObject loseScreen, GameObject winScreen, GameStateVariable gameState, UnityEvent onLevelStarted, UnityEvent onLevelCompleted, UnityEvent onLevelFailed, UnityEvent onLevelWon)
+        {
+            this.loseScreen = loseScreen;
+            this.winScreen = winScreen;
+            this.gameState = gameState;
+            OnLevelStarted = onLevelStarted;
+            OnLevelCompleted = onLevelCompleted;
+            OnLevelFailed = onLevelFailed;
+            OnLevelWon = onLevelWon;
+        }
 
         public void StartLevel()
         {
@@ -25,28 +31,23 @@ namespace FateGames.Core
 
         public void FinishLevel(bool success)
         {
-            OnLevelFinished.Invoke();
             if (success)
             {
+                Object.Instantiate(winScreen);
                 gameState.Value = GameState.WIN_SCREEN;
-                saveData.Value.Level++;
-                Instantiate(winScreen);
                 OnLevelWon.Invoke();
             }
             else
             {
+                Object.Instantiate(loseScreen);
                 gameState.Value = GameState.LOSE_SCREEN;
-                Instantiate(loseScreen);
                 OnLevelFailed.Invoke();
             }
+            OnLevelCompleted.Invoke();
         }
 
 #if UNITY_EDITOR
-        [MenuItem("Fate/Level/Open Level Manager")]
-        public static void OpenLevelManager()
-        {
-            AssetDatabase.OpenAsset(Resources.Load("LevelManager"));
-        }
+
         [MenuItem("Fate/Level/Open Win Screen")]
         public static void OpenWinScreen()
         {

@@ -8,38 +8,18 @@ using UnityEngine;
 
 namespace FateGames.Core
 {
-    [CreateAssetMenu(menuName = "Fate/Manager/SaveManager")]
-    public class SaveManager : ScriptableObject
+    public class SaveManager
     {
-        /* [HideInInspector]*/
-        public bool OverrideSave = false;
-        /*[HideInInspector]*/
-        public SaveDataVariable SaveData;
-        /* [HideInInspector]*/
-        public SaveDataVariable OverrideSaveData = null;
-        /* [HideInInspector]*/
-        public bool AutoSave = false;
-        /* [HideInInspector]*/
-        public float AutoSavePeriod = 10;
+        private SaveDataVariable saveData, overrideSaveData;
 
-
-        public void Initialize()
+        public SaveManager(SaveDataVariable saveData, SaveDataVariable overrideSaveData)
         {
-            Load();
-            if (!OverrideSave && AutoSave)
-                RoutineRunner.StartRoutine(SaveRoutine());
+            this.saveData = saveData;
+            this.overrideSaveData = overrideSaveData;
         }
 
-        private IEnumerator SaveRoutine()
+        public void SaveToDevice(SaveData data)
         {
-            Save(SaveData.Value);
-            yield return new WaitForSeconds(AutoSavePeriod);
-            yield return SaveRoutine();
-        }
-
-        public void Save(SaveData data)
-        {
-            if (OverrideSave) return;
             BinaryFormatter formatter = new();
             string path = Application.persistentDataPath + "/saveData.fate";
             FileStream stream = new(path, FileMode.Create);
@@ -48,9 +28,9 @@ namespace FateGames.Core
             Debug.Log("Saved");
         }
 
-        public void Load()
+        public void Load(bool overrideSave = false)
         {
-            if (!OverrideSave)
+            if (!overrideSave)
             {
                 string path = Application.persistentDataPath + "/saveData.fate";
                 if (File.Exists(path))
@@ -60,22 +40,42 @@ namespace FateGames.Core
                     stream.Position = 0;
                     SaveData data = formatter.Deserialize(stream) as SaveData;
                     stream.Close();
-                    SaveData.Value = data;
+                    saveData.Value = data;
                 }
                 else
                 {
                     SaveData data = new();
-                    SaveData.Value = data;
-                    Save(data);
+                    saveData.Value = data;
+                    SaveToDevice(data);
                 }
             }
             else
             {
                 SaveData data;
-                if (OverrideSaveData == null) data = new();
-                else data = OverrideSaveData.Value;
-                SaveData.Value = data;
+                if (overrideSaveData == null) data = new();
+                else data = CloneSave(overrideSaveData.Value);
+
+                saveData.Value = data;
             }
+        }
+
+        public SaveData CloneSave(SaveData original)
+        {
+            // Serialize
+            BinaryFormatter formatter = new();
+            string path = Application.persistentDataPath + "/cloneSaveData.fate";
+            FileStream serializationStream = new(path, FileMode.Create);
+            formatter.Serialize(serializationStream, original);
+            serializationStream.Close();
+
+            // Deserialize
+            FileStream deserializationStream = new(path, FileMode.Open);
+            deserializationStream.Position = 0;
+            SaveData clone = formatter.Deserialize(deserializationStream) as SaveData;
+            deserializationStream.Close();
+            if (File.Exists(path))
+                File.Delete(path);
+            return clone;
         }
 #if UNITY_EDITOR
         [MenuItem("Fate/Delete Player Data")]

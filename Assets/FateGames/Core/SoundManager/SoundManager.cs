@@ -4,22 +4,29 @@ using UnityEngine;
 
 namespace FateGames.Core
 {
-    [CreateAssetMenu(menuName = "Fate/Sound/SoundManager")]
-    public class SoundManager : ScriptableObject
+    public class SoundManager
     {
-        [SerializeField] private GameStateVariable gameState;
-        [SerializeField] private BoolVariable soundOn;
-        [SerializeField] private GameObject soundWorkerPrefab;
-        [SerializeField] private WorkingSoundWorkerSet workingWorkerSet;
-        [SerializeField] private AvailableSoundWorkerSet availableWorkerSet;
+        private GameStateVariable gameState;
+        private BoolVariable soundOn;
+        private GameObject soundWorkerPrefab;
+        private WorkingSoundWorkerSet workingWorkerSet;
+        private AvailableSoundWorkerSet availableWorkerSet;
+
+        public SoundManager(GameStateVariable gameState, BoolVariable soundOn, GameObject soundWorkerPrefab, WorkingSoundWorkerSet workingWorkerSet, AvailableSoundWorkerSet availableWorkerSet)
+        {
+            this.gameState = gameState;
+            this.soundOn = soundOn;
+            this.soundWorkerPrefab = soundWorkerPrefab;
+            this.workingWorkerSet = workingWorkerSet;
+            this.availableWorkerSet = availableWorkerSet;
+            Initialize();
+        }
+
         private int workerCount { get => workingWorkerSet.Items.Count + availableWorkerSet.Items.Count; }
-        private SoundTable table = null;
 
         public void Initialize()
         {
             soundOn.Value = true;
-            table = Resources.Load<SoundTable>("SoundTable");
-            //table.Initialize();
         }
 
         public void StopWorkers()
@@ -50,20 +57,19 @@ namespace FateGames.Core
 
         private void InstantiateWorker()
         {
-            Instantiate(soundWorkerPrefab);
+            Object.Instantiate(soundWorkerPrefab);
         }
 
-        public SoundWorker PlaySound(string soundTag, bool ignoreListenerPause = false)
+        public SoundWorker PlaySound(SoundEntity entity, bool ignoreListenerPause = false)
         {
-            return PlaySound(soundTag, Vector3.zero, ignoreListenerPause);
+            return PlaySound(entity, Vector3.zero, ignoreListenerPause);
         }
 
-        public SoundWorker PlaySound(string soundTag, Vector3 position, bool ignoreListenerPause = false, bool pauseOnStartIfGamePaused = false)
+        public SoundWorker PlaySound(SoundEntity entity, Vector3 position, bool ignoreListenerPause = false, bool pauseOnStartIfGamePaused = false)
         {
-            if (soundTag == "") return null;
+            if (!entity) return null;
             if (!ignoreListenerPause && !pauseOnStartIfGamePaused && gameState.Value == GameState.PAUSED) return null;
             SoundWorker worker = GetAvailableWorker();
-            SoundEntity entity = table[soundTag];
             float pitch = Random.Range(entity.PitchRangeMin, entity.PitchRangeMax);
             worker.Initialize(entity.Clip, entity.Volume, pitch, entity.SpatialBlend, entity.Loop, position, ignoreListenerPause);
             worker.Play();
