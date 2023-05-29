@@ -1,3 +1,4 @@
+using GameAnalyticsSDK;
 using Lofelt.NiceVibrations;
 using System.Collections;
 using System.Collections.Generic;
@@ -32,6 +33,12 @@ namespace FateGames.Core
         [SerializeField] private AvailableSoundWorkerSet availableWorkerSet;
         [Header("Haptic Management")]
         [SerializeField] private BoolVariable vibrationOn;
+        [Header("Firebase")]
+        [SerializeField] private FirebaseManager firebaseManager;
+        [Header("Applovin")]
+        [SerializeField] private ApplovinManager applovinManager;
+        [Header("Tenjin")]
+        [SerializeField] private TenjinManager tenjinManager;
         [Header("Events")]
         [SerializeField] private UnityEvent onPause;
         [SerializeField] private UnityEvent onResume, onLevelStarted, onLevelWon, onLevelFailed, onLevelCompleted;
@@ -42,13 +49,27 @@ namespace FateGames.Core
         private LevelManager levelManager;
         private SoundManager soundManager;
         private HapticManager hapticManager;
+        private FacebookManager facebookManager = new();
+        private bool thirdPartyInitialized = false;
 
         protected override void Awake()
         {
             base.Awake();
+            if (duplicated) return;
             Initialize();
-            if (!sceneManager.IsLevel(UnityEngine.SceneManagement.SceneManager.GetActiveScene()))
-                sceneManager.LoadCurrentLevel();
+            IEnumerator routine()
+            {
+                yield return InitializeThirdParty();
+                if (!sceneManager.IsLevel(UnityEngine.SceneManagement.SceneManager.GetActiveScene()))
+                    sceneManager.LoadCurrentLevel();
+                else
+                {
+                    gameState.Value = GameState.BEFORE_START;
+                    if (autoStart)
+                        StartLevel();
+                }
+            }
+            StartCoroutine(routine());
         }
 
         private void Start()
@@ -59,6 +80,7 @@ namespace FateGames.Core
 
         public void Initialize()
         {
+            Debug.Log("Initialize");
             SetTargetFrameRate(defaultTargetFrameRate);
             InitializeGamePauser();
             InitializeSaveManagement();
@@ -66,6 +88,21 @@ namespace FateGames.Core
             InitializeLevelManagement();
             InitializeSoundManagement();
             InitializeHapticManagement();
+        }
+        public IEnumerator InitializeThirdParty()
+        {
+            if (firebaseManager)
+                yield return firebaseManager.Initialize();
+            if (applovinManager)
+                yield return applovinManager.Initialize();
+            if (tenjinManager)
+                tenjinManager.Connect();
+            GameAnalytics.Initialize();
+            yield return facebookManager.Initialize();
+            if (AdManager.Instance)
+                AdManager.Instance.Initialize();
+            thirdPartyInitialized = true;
+
         }
         private void InitializeGamePauser()
         {
@@ -97,10 +134,12 @@ namespace FateGames.Core
         public void StartLevel()
         {
             levelManager.StartLevel();
+            ReportLevelProgress(GAProgressionStatus.Start);
         }
 
         public void FinishLevel(bool success)
         {
+            ReportLevelProgress(success ? GAProgressionStatus.Complete : GAProgressionStatus.Fail);
             levelManager.FinishLevel(success);
         }
 
@@ -169,9 +208,14 @@ namespace FateGames.Core
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnLevelFinishedLoading;
         }
 
+        public void ReportLevelProgress(GAProgressionStatus status)
+        {
+            GameAnalytics.NewProgressionEvent(status, "Level_Progress", saveData.Value.Level);
+        }
+
         void OnLevelFinishedLoading(Scene scene, LoadSceneMode mode)
         {
-            if (sceneManager.IsLevel(scene))
+            if (thirdPartyInitialized && sceneManager.IsLevel(scene))
             {
                 gameState.Value = GameState.BEFORE_START;
                 if (autoStart)

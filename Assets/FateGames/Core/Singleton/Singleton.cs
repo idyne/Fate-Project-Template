@@ -1,10 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
-public class Singleton<T> : MonoBehaviour where T : Component
+using FateGames.Core;
+public class Singleton<T> : FateMonoBehaviour where T : Component
 {
     private static T instance;
+    public bool duplicated { get; private set; }
     public static T Instance
     {
         get
@@ -44,6 +45,8 @@ public class Singleton<T> : MonoBehaviour where T : Component
         }
         else
         {
+            duplicated = true;
+            transform.SetParent(null);
             Destroy(gameObject);
         }
     }

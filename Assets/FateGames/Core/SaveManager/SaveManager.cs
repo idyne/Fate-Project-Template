@@ -11,7 +11,7 @@ namespace FateGames.Core
     public class SaveManager
     {
         private SaveDataVariable saveData, overrideSaveData;
-
+        private float lastTotalPlaytimeSaveTime = 0;
         public SaveManager(SaveDataVariable saveData, SaveDataVariable overrideSaveData)
         {
             this.saveData = saveData;
@@ -20,6 +20,8 @@ namespace FateGames.Core
 
         public void SaveToDevice(SaveData data)
         {
+            data.TotalPlaytime += Time.time - lastTotalPlaytimeSaveTime;
+            lastTotalPlaytimeSaveTime = Time.time;
             BinaryFormatter formatter = new();
             string path = Application.persistentDataPath + "/saveData.fate";
             FileStream stream = new(path, FileMode.Create);
