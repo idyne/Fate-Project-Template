@@ -11,6 +11,9 @@ public class ApplovinManager : ScriptableObject
     public IEnumerator Initialize()
     {
         bool done = false;
+#if !DEBUG
+        MaxSdk.SetCreativeDebuggerEnabled(false);
+#endif
         MaxSdkCallbacks.OnSdkInitializedEvent += (MaxSdkBase.SdkConfiguration sdkConfiguration) =>
         {
             done = true;

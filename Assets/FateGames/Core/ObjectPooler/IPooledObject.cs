@@ -7,7 +7,7 @@ using System;
 
 public interface IPooledObject
 {
-    public event Action Release;
+    public Action Release { get; set; }
 
     public abstract void OnObjectSpawn();
     public abstract void OnRelease();

@@ -22,7 +22,7 @@ namespace FateGames.Core
             Initialize();
         }
 
-        private int workerCount { get => workingWorkerSet.Items.Count + availableWorkerSet.Items.Count; }
+        private int workerCount { get => workingWorkerSet.Count + availableWorkerSet.Count; }
 
         public void Initialize()
         {
@@ -31,14 +31,17 @@ namespace FateGames.Core
 
         public void StopWorkers()
         {
-            foreach (SoundWorker worker in workingWorkerSet.Items)
+            for (int i = 0; i < workingWorkerSet.Count; i++)
+            {
+                SoundWorker worker = workingWorkerSet[i];
                 worker.Stop();
+            }
         }
 
         private SoundWorker GetAvailableWorker()
         {
             SoundWorker worker = null;
-            void GetWorker() { if (availableWorkerSet.Items.Count > 0) worker = availableWorkerSet.Items[0]; }
+            void GetWorker() { if (availableWorkerSet.Count > 0) worker = availableWorkerSet[0]; }
             GetWorker();
             if (worker == null)
             {

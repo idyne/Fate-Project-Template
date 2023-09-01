@@ -44,11 +44,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2e339c0c60d09044ca0b7905762afd44, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  disabled: 0
-  saveData: {fileID: 11400000, guid: 2fbe29c554af5d84b9bdecaab48fec86, type: 2}
-  BannerAdUnitId: 76c9011ced4d64d6
-  InterstitialAdUnitId: 9c38eb8f88f6ed71
-  RewardedAdUnitId: 2490be4e9d1d7e09
+  dontDestroyOnLoad: 1
+  onInterstitialDismissed:
+    m_PersistentCalls:
+      m_Calls: []
+  BannerAdUnitIdAnd: 76c9011ced4d64d6
+  InterstitialAdUnitIdAnd: 9c38eb8f88f6ed71
+  RewardedAdUnitIdAnd: 2490be4e9d1d7e09
+  BannerAdUnitIdIOS: 87dad85ce022cb39
+  InterstitialAdUnitIdIOS: 94e78e440a380f97
+  RewardedAdUnitIdIOS: 1a49b0ced6375beb
   remoteConfigManager: {fileID: 11400000, guid: c382e6d1da5fc504ca8e7260662acbb1,
     type: 2}
   timeIntervalBetweenInterstitialConfig: {fileID: 11400000, guid: 172b342a7f0714945834e979759fb1cc,

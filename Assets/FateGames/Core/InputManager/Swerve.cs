@@ -3,13 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 namespace FateGames.Core
 {
     public class Swerve : MonoBehaviour
     {
-        [SerializeField] protected int Size = 100;
+        public int Size { get; private set; } = Screen.height / 20;
         public Vector2 AnchorPosition { get; protected set; } = Vector2.zero;
         public Vector2 MousePosition { get; protected set; } = Vector2.zero;
         public Vector2 Difference { get => MousePosition - AnchorPosition; }
@@ -21,8 +22,17 @@ namespace FateGames.Core
         [SerializeField] public UnityEvent<Swerve> OnStart = new();
         [SerializeField] public UnityEvent<Swerve> OnSwerve = new();
         [SerializeField] public UnityEvent<Swerve> OnRelease = new();
+        protected bool onUI = false;
+        [SerializeField] protected bool worksOnUI = false;
 
-
+        public void SetSize(int size)
+        {
+            Size = size;
+        }
+        private void OnDisable()
+        {
+            OnRelease.Invoke(this);
+        }
         private void Update()
         {
             if (Input.touchSupported)
@@ -39,6 +49,7 @@ namespace FateGames.Core
                             OnMouseButton();
                             break;
                         case UnityEngine.TouchPhase.Stationary:
+                            OnMouseButton();
                             break;
                         case UnityEngine.TouchPhase.Ended:
                             OnMouseButtonUp();
@@ -61,6 +72,8 @@ namespace FateGames.Core
 
         protected virtual void OnMouseButtonDown()
         {
+            onUI = EventSystem.current.IsPointerOverGameObject() || EventSystem.current.currentSelectedGameObject != null;
+            if (!worksOnUI && onUI) return;
             MousePosition = Input.mousePosition;
             AnchorPosition = MousePosition;
             OnStart.Invoke(this);
@@ -68,6 +81,7 @@ namespace FateGames.Core
 
         protected virtual void OnMouseButton()
         {
+            if (!worksOnUI && onUI) return;
             Vector2 mousePosition = Input.mousePosition;
             Vector2 direction = (mousePosition - AnchorPosition).normalized;
             MousePosition = AnchorPosition + direction * Mathf.Clamp((mousePosition - AnchorPosition).magnitude, 0, Size);
@@ -76,7 +90,13 @@ namespace FateGames.Core
 
         protected virtual void OnMouseButtonUp()
         {
+            if (!worksOnUI && onUI) return;
             OnRelease.Invoke(this);
+        }
+
+        public void RestartSwerve()
+        {
+            OnMouseButtonDown();
         }
 
     }

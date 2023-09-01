@@ -1,40 +1,108 @@
+using com.adjust.sdk;
 using FateGames.Core;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class AdManager : Singleton<AdManager>
 {
-    [SerializeField] private bool disabled = false;
-    [SerializeField] private SaveDataVariable saveData;
-    [Header("AD KEYS")]
+    bool disabled { get => SaveManager.Instance.GetBool("adsRemoved", false); set => SaveManager.Instance.SetBool("adsRemoved", value); }
+    public static bool Disabled { get => Instance.disabled; }
+    [SerializeField] private UnityEvent onInterstitialDismissed = new();
+    [Header("AD KEYS AND")]
+    [SerializeField] private string BannerAdUnitIdAnd = "";
+    [SerializeField] private string InterstitialAdUnitIdAnd = "";
+    [SerializeField] private string RewardedAdUnitIdAnd = "";
+    [Header("AD KEYS IOS")]
+    [SerializeField] private string BannerAdUnitIdIOS = "";
+    [SerializeField] private string InterstitialAdUnitIdIOS = "";
+    [SerializeField] private string RewardedAdUnitIdIOS = "";
+    private string BannerAdUnitId
+    {
+        get
+        {
 #if UNITY_STANDALONE || UNITY_IOS
-    [SerializeField] private string BannerAdUnitId = "";
-    [SerializeField] private string InterstitialAdUnitId = "";
-    [SerializeField] private string RewardedAdUnitId = "";
+            return BannerAdUnitIdIOS;
 #elif UNITY_ANDROID
-    [SerializeField] private string BannerAdUnitId = "";
-    [SerializeField] private string InterstitialAdUnitId = "";
-    [SerializeField] private string RewardedAdUnitId = "";
+            return BannerAdUnitIdAnd;
 #endif
+        }
+    }
+    private string InterstitialAdUnitId
+    {
+        get
+        {
+#if UNITY_STANDALONE || UNITY_IOS
+            return InterstitialAdUnitIdIOS;
+#elif UNITY_ANDROID
+            return InterstitialAdUnitIdAnd;
+#endif
+        }
+    }
+    private string RewardedAdUnitId
+    {
+        get
+        {
+#if UNITY_STANDALONE || UNITY_IOS
+            return RewardedAdUnitIdIOS;
+#elif UNITY_ANDROID
+            return RewardedAdUnitIdAnd;
+#endif
+        }
+    }
     [Header("REMOTE CONFIG")]
     [SerializeField] private RemoteConfigManager remoteConfigManager;
     [SerializeField] private NumberRemoteConfig timeIntervalBetweenInterstitialConfig, firstInterstitialTimeConfig, graceTimeConfig;
     float timeIntervalBetweenInterstitial => remoteConfigManager.GetNumberConfig(timeIntervalBetweenInterstitialConfig);
     float firstInterstitialTime => remoteConfigManager.GetNumberConfig(firstInterstitialTimeConfig);
     float graceTime => remoteConfigManager.GetNumberConfig(graceTimeConfig);
+    public bool IsGraceTimePassed => SaveManager.TotalPlaytime > graceTime;
     #region Interstitial Ad Methods
     private int interstitialRetryAttempt = 0;
-    private float lastInterstitialShowTime = float.MinValue;
-    public bool canShowInterstitial => Time.time >= lastInterstitialShowTime + timeIntervalBetweenInterstitial && Time.time >= firstInterstitialTime && graceTime <= saveData.Value.TotalPlaytime;
+    private float lastAdShowTime = 0;
+    private float lastInterstitialShowTime = 0;
+    public bool canShowInterstitial => Time.time >= lastAdShowTime + timeIntervalBetweenInterstitial && Time.time >= firstInterstitialTime && graceTime <= SaveManager.TotalPlaytime;
+
+    private void OnDisable()
+    {
+        Release();
+    }
+    public void DisableAds()
+    {
+        Debug.Log("DisableAds");
+        disabled = true;
+        HideBannerAd();
+    }
+
+    public void EnableAds()
+    {
+        Debug.Log("EnableAds");
+        disabled = false;
+        ShowBannerAd();
+    }
 
     public void Initialize()
     {
-        Debug.Log(this, this);
         InitializeBannerAds();
         InitializeInterstitialAds();
         InitializeRewardedAds();
+    }
+    public void Release()
+    {
+        ReleaseBannerEvents();
+        ReleaseInterstitialEvents();
+        ReleaseRewardedEvents();
+    }
+    private void OnAdRevenuePaidEvent(string arg1, MaxSdkBase.AdInfo arg2)
+    {
+        AdjustAdRevenue adjustAdRevenue = new(AdjustConfig.AdjustAdRevenueSourceAppLovinMAX);
+        adjustAdRevenue.setRevenue(arg2.Revenue, "USD");
+        adjustAdRevenue.setAdRevenueNetwork(arg2.NetworkName);
+        adjustAdRevenue.setAdRevenueUnit(arg2.AdUnitIdentifier);
+        adjustAdRevenue.setAdRevenuePlacement(arg2.Placement);
+        Adjust.trackAdRevenue(adjustAdRevenue);
     }
     private void InitializeInterstitialAds()
     {
@@ -43,11 +111,21 @@ public class AdManager : Singleton<AdManager>
         MaxSdkCallbacks.Interstitial.OnAdLoadFailedEvent += OnInterstitialFailedEvent;
         MaxSdkCallbacks.Interstitial.OnAdDisplayFailedEvent += InterstitialFailedToDisplayEvent;
         MaxSdkCallbacks.Interstitial.OnAdHiddenEvent += OnInterstitialDismissedEvent;
+        MaxSdkCallbacks.Interstitial.OnAdRevenuePaidEvent += OnAdRevenuePaidEvent; // Adjust
 
 
         // Load the first interstitial
         LoadInterstitial();
         //InitializeRewardedAds();
+    }
+
+    private void ReleaseInterstitialEvents()
+    {
+        MaxSdkCallbacks.Interstitial.OnAdLoadedEvent -= OnInterstitialLoadedEvent;
+        MaxSdkCallbacks.Interstitial.OnAdLoadFailedEvent -= OnInterstitialFailedEvent;
+        MaxSdkCallbacks.Interstitial.OnAdDisplayFailedEvent -= InterstitialFailedToDisplayEvent;
+        MaxSdkCallbacks.Interstitial.OnAdHiddenEvent -= OnInterstitialDismissedEvent;
+        MaxSdkCallbacks.Interstitial.OnAdRevenuePaidEvent -= OnAdRevenuePaidEvent; // Adjust
     }
 
     void LoadInterstitial()
@@ -58,7 +136,7 @@ public class AdManager : Singleton<AdManager>
 
     public void ShowInterstitial()
     {
-        if (disabled) return;
+        if (Disabled) return;
         Debug.Log("ShowInterstitial");
         if (MaxSdk.IsInterstitialReady(InterstitialAdUnitId) && canShowInterstitial)
         {
@@ -104,11 +182,12 @@ public class AdManager : Singleton<AdManager>
 
     private void OnInterstitialDismissedEvent(string adUnitId, MaxSdkBase.AdInfo adInfo)
     {
-
+        lastAdShowTime = Time.time;
         lastInterstitialShowTime = Time.time;
         // Interstitial ad is hidden. Pre-load the next ad
         Debug.Log("Interstitial dismissed");
         LoadInterstitial();
+        onInterstitialDismissed.Invoke();
     }
 
 
@@ -134,10 +213,23 @@ public class AdManager : Singleton<AdManager>
         MaxSdkCallbacks.Rewarded.OnAdClickedEvent += OnRewardedAdClickedEvent;
         MaxSdkCallbacks.Rewarded.OnAdHiddenEvent += OnRewardedAdDismissedEvent;
         MaxSdkCallbacks.Rewarded.OnAdReceivedRewardEvent += OnRewardedAdReceivedRewardEvent;
+        MaxSdkCallbacks.Rewarded.OnAdRevenuePaidEvent += OnAdRevenuePaidEvent; // Adjust
 
 
         // Load the first RewardedAd
         LoadRewardedAd();
+    }
+
+    private void ReleaseRewardedEvents()
+    {
+        MaxSdkCallbacks.Rewarded.OnAdLoadedEvent -= OnRewardedAdLoadedEvent;
+        MaxSdkCallbacks.Rewarded.OnAdLoadFailedEvent -= OnRewardedAdFailedEvent;
+        MaxSdkCallbacks.Rewarded.OnAdDisplayFailedEvent -= OnRewardedAdFailedToDisplayEvent;
+        MaxSdkCallbacks.Rewarded.OnAdDisplayedEvent -= OnRewardedAdDisplayedEvent;
+        MaxSdkCallbacks.Rewarded.OnAdClickedEvent -= OnRewardedAdClickedEvent;
+        MaxSdkCallbacks.Rewarded.OnAdHiddenEvent -= OnRewardedAdDismissedEvent;
+        MaxSdkCallbacks.Rewarded.OnAdReceivedRewardEvent -= OnRewardedAdReceivedRewardEvent;
+        MaxSdkCallbacks.Rewarded.OnAdRevenuePaidEvent -= OnAdRevenuePaidEvent; // Adjust
     }
 
     private void LoadRewardedAd()
@@ -146,11 +238,12 @@ public class AdManager : Singleton<AdManager>
         MaxSdk.LoadRewardedAd(RewardedAdUnitId);
     }
 
-    public void ShowRewardedAd(Action onFailed, Action onSucceed)
+    public void ShowRewardedAd(string rewardName, Action onFailed, Action onSucceed)
     {
         if (MaxSdk.IsRewardedAdReady(RewardedAdUnitId))
         {
             onRewardedAdSucceed = onSucceed;
+            onRewardedAdSucceed += () => FirebaseEventManager.SendRVWatchedEvent(rewardName);
             onRewardedAdFailed = onFailed;
             Debug.Log("Showing...");
             MaxSdk.ShowRewardedAd(RewardedAdUnitId);
@@ -206,7 +299,7 @@ public class AdManager : Singleton<AdManager>
     {
         // Rewarded ad is hidden. Pre-load the next ad
         Debug.Log("Rewarded ad dismissed");
-        lastInterstitialShowTime = Time.time;
+        lastAdShowTime = Time.time;
         if (!rewardedAdSucceed && onRewardedAdFailed != null)
             onRewardedAdFailed.Invoke();
         else if (rewardedAdSucceed && onRewardedAdSucceed != null)
@@ -237,6 +330,7 @@ public class AdManager : Singleton<AdManager>
         MaxSdkCallbacks.Banner.OnAdLoadedEvent += OnBannerAdLoadedEvent;
         MaxSdkCallbacks.Banner.OnAdLoadFailedEvent += OnBannerAdFailedEvent;
         MaxSdkCallbacks.Banner.OnAdClickedEvent += OnBannerAdClickedEvent;
+        MaxSdkCallbacks.Banner.OnAdRevenuePaidEvent += OnAdRevenuePaidEvent; // Adjust
 
 
         // Banners are automatically sized to 320x50 on phones and 728x90 on tablets.
@@ -247,9 +341,28 @@ public class AdManager : Singleton<AdManager>
         MaxSdk.SetBannerBackgroundColor(BannerAdUnitId, Color.black);
     }
 
+    private void ReleaseBannerEvents()
+    {
+        MaxSdkCallbacks.Banner.OnAdLoadedEvent -= OnBannerAdLoadedEvent;
+        MaxSdkCallbacks.Banner.OnAdLoadFailedEvent -= OnBannerAdFailedEvent;
+        MaxSdkCallbacks.Banner.OnAdClickedEvent -= OnBannerAdClickedEvent;
+        MaxSdkCallbacks.Banner.OnAdRevenuePaidEvent -= OnAdRevenuePaidEvent; // Adjust
+    }
+
     public void ShowBannerAd()
     {
-        if (disabled) return;
+        if (Disabled) return;
+        if (SaveManager.TotalPlaytime <= graceTime)
+        {
+            IEnumerator Routine()
+            {
+                yield return new WaitUntil(() => SaveManager.TotalPlaytime > graceTime);
+                ShowBannerAd();
+            }
+            StartCoroutine(Routine());
+            return;
+        }
+
         Debug.Log("ShowBannerAd");
         MaxSdk.ShowBanner(BannerAdUnitId);
     }

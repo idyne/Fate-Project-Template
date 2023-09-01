@@ -26,7 +26,8 @@ public class RemoteConfigManager : ScriptableObject
         // yet, or if we ask for values that the server doesn't have:ü
         foreach (NumberRemoteConfig config in numberRemoteConfigs)
         {
-            defaults.Add(config.id, config.defaultValue);
+            if (config != null)
+                defaults.Add(config.id, config.defaultValue);
         }
 
         Firebase.RemoteConfig.FirebaseRemoteConfig.DefaultInstance.SetDefaultsAsync(defaults)

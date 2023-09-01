@@ -11,6 +11,7 @@ namespace FateGames.Core
 
         protected override void OnMouseButton()
         {
+            if (!worksOnUI && onUI) return;
             MousePosition = Input.mousePosition;
             Vector2 direction = (MousePosition - AnchorPosition).normalized;
             AnchorPosition = AnchorPosition + direction * Mathf.Clamp((AnchorPosition - MousePosition).magnitude - Size, 0, float.MaxValue);

@@ -8,8 +8,9 @@ public class PooledEffect : FateMonoBehaviour, IPooledObject
 {
     [SerializeField] private ParticleSystem effect;
     private WaitForSeconds waitForEffectDuration;
-    public event Action Release;
     private IEnumerator releaseRoutine;
+
+    public Action Release { get; set; }
 
     private void Awake()
     {
@@ -49,7 +50,8 @@ public class PooledEffect : FateMonoBehaviour, IPooledObject
     public void OnObjectSpawn()
     {
         PlayEffect();
-        StartReleaseCoroutine();
+        if (!effect.main.loop)
+            StartReleaseCoroutine();
     }
 
     private void StartReleaseCoroutine()

@@ -4,6 +4,7 @@ using UnityEngine;
 using FateGames.Core;
 public class Singleton<T> : FateMonoBehaviour where T : Component
 {
+    [SerializeField] bool dontDestroyOnLoad = true;
     private static T instance;
     public bool duplicated { get; private set; }
     public static T Instance
@@ -23,6 +24,7 @@ public class Singleton<T> : FateMonoBehaviour where T : Component
     }
     protected virtual void Awake()
     {
+        transform.SetParent(null);
         RemoveDuplicates();
     }
     private static void SetupInstance()
@@ -43,10 +45,9 @@ public class Singleton<T> : FateMonoBehaviour where T : Component
             instance = this as T;
             DontDestroyOnLoad(gameObject);
         }
-        else
+        else if (instance != this)
         {
             duplicated = true;
-            transform.SetParent(null);
             Destroy(gameObject);
         }
     }

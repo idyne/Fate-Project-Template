@@ -1,3 +1,4 @@
+using DG.Tweening;
 using GameAnalyticsSDK;
 using Lofelt.NiceVibrations;
 using System.Collections;
@@ -12,13 +13,12 @@ namespace FateGames.Core
     {
         [Header("Properties")]
         [SerializeField] private GameStateVariable gameState;
+        [SerializeField] private SplashScreen splashScreen;
         [Header("Target Frame Rate")]
         [SerializeField] private int defaultTargetFrameRate = -1;
         [Header("Save Management")]
         [SerializeField] private bool autoSave = false;
         [SerializeField] private float autoSavePeriod = 10;
-        [SerializeField] private bool overrideSave = false;
-        [SerializeField] private SaveDataVariable saveData, overrideSaveData;
         [Header("Scene Management")]
         [SerializeField] private int firstLevelSceneIndex = 1;
         [SerializeField] private bool loop;
@@ -35,16 +35,16 @@ namespace FateGames.Core
         [SerializeField] private BoolVariable vibrationOn;
         [Header("Firebase")]
         [SerializeField] private FirebaseManager firebaseManager;
+        [SerializeField] private RemoteConfigManager remoteConfigManager;
+        private PushNotificationManager pushNotificationManager = new();
         [Header("Applovin")]
         [SerializeField] private ApplovinManager applovinManager;
-        [Header("Tenjin")]
-        [SerializeField] private TenjinManager tenjinManager;
+        [Header("Adjust")]
+        [SerializeField] private AdjustManager adjustManager;
         [Header("Events")]
         [SerializeField] private UnityEvent onPause;
         [SerializeField] private UnityEvent onResume, onLevelStarted, onLevelWon, onLevelFailed, onLevelCompleted;
         private GamePauser gamePauser;
-        private SaveManager saveManager;
-        private WaitForSeconds waitForAutoSavePeriod;
         private SceneManager sceneManager;
         private LevelManager levelManager;
         private SoundManager soundManager;
@@ -59,6 +59,8 @@ namespace FateGames.Core
             Initialize();
             IEnumerator routine()
             {
+                if (splashScreen)
+                    yield return new WaitUntil(() => splashScreen.Finished);
                 yield return InitializeThirdParty();
                 if (!sceneManager.IsLevel(UnityEngine.SceneManagement.SceneManager.GetActiveScene()))
                     sceneManager.LoadCurrentLevel();
@@ -74,7 +76,7 @@ namespace FateGames.Core
 
         private void Start()
         {
-            if (autoSave && !overrideSave) StartCoroutine(AutoSaveRoutine());
+            if (autoSave) StartCoroutine(AutoSaveRoutine());
 
         }
 
@@ -83,7 +85,6 @@ namespace FateGames.Core
             Debug.Log("Initialize");
             SetTargetFrameRate(defaultTargetFrameRate);
             InitializeGamePauser();
-            InitializeSaveManagement();
             InitializeSceneManagement();
             InitializeLevelManagement();
             InitializeSoundManagement();
@@ -92,11 +93,14 @@ namespace FateGames.Core
         public IEnumerator InitializeThirdParty()
         {
             if (firebaseManager)
+            {
                 yield return firebaseManager.Initialize();
+                pushNotificationManager.Initialize();
+            }
             if (applovinManager)
                 yield return applovinManager.Initialize();
-            if (tenjinManager)
-                tenjinManager.Connect();
+            if (adjustManager)
+                adjustManager.Initialize();
             GameAnalytics.Initialize();
             yield return facebookManager.Initialize();
             if (AdManager.Instance)
@@ -108,15 +112,10 @@ namespace FateGames.Core
         {
             gamePauser = new(onPause, onResume, gameState);
         }
-        private void InitializeSaveManagement()
-        {
-            saveManager = new(saveData, overrideSaveData);
-            saveManager.Load(overrideSave);
-            waitForAutoSavePeriod = new(autoSavePeriod);
-        }
+
         private void InitializeSceneManagement()
         {
-            sceneManager = new(gameState, firstLevelSceneIndex, loop, saveData, loadingScreen);
+            sceneManager = new(gameState, firstLevelSceneIndex, loop, loadingScreen);
         }
         private void InitializeLevelManagement()
         {
@@ -129,6 +128,11 @@ namespace FateGames.Core
         private void InitializeHapticManagement()
         {
             hapticManager = new(vibrationOn);
+        }
+
+        public long GetNumberConfig(NumberRemoteConfig numberRemoteConfig)
+        {
+            return remoteConfigManager.GetNumberConfig(numberRemoteConfig);
         }
 
         public void StartLevel()
@@ -145,20 +149,15 @@ namespace FateGames.Core
 
         public void LoadCurrentLevel()
         {
+            soundManager.StopWorkers();
             sceneManager.LoadCurrentLevel();
         }
 
         private IEnumerator AutoSaveRoutine()
         {
-            yield return waitForAutoSavePeriod;
-            saveManager.SaveToDevice(saveData.Value);
+            yield return new WaitForSeconds(autoSavePeriod);
+            SaveManager.Instance.Save();
             yield return AutoSaveRoutine();
-        }
-
-        public void SaveToDevice()
-        {
-            if (overrideSave) return;
-            saveManager.SaveToDevice(saveData.Value);
         }
 
         public void SetTargetFrameRate(int targetFrameRate) => Application.targetFrameRate = targetFrameRate;
@@ -200,17 +199,19 @@ namespace FateGames.Core
         {
             //Tell our 'OnLevelFinishedLoading' function to start listening for a scene change as soon as this script is enabled.
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnLevelFinishedLoading;
+            UnityEngine.SceneManagement.SceneManager.sceneUnloaded += OnLevelFinishedUnloading;
         }
 
         void OnDisable()
         {
             //Tell our 'OnLevelFinishedLoading' function to stop listening for a scene change as soon as this script is disabled. Remember to always have an unsubscription for every delegate you subscribe to!
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnLevelFinishedLoading;
+            UnityEngine.SceneManagement.SceneManager.sceneUnloaded -= OnLevelFinishedUnloading;
         }
 
         public void ReportLevelProgress(GAProgressionStatus status)
         {
-            GameAnalytics.NewProgressionEvent(status, "Level_Progress", saveData.Value.Level);
+            GameAnalytics.NewProgressionEvent(status, "Level_Progress", SaveManager.Level);
         }
 
         void OnLevelFinishedLoading(Scene scene, LoadSceneMode mode)
@@ -222,7 +223,21 @@ namespace FateGames.Core
                     StartLevel();
             }
         }
+        void OnLevelFinishedUnloading(Scene scene)
+        {
+            Debug.Log($"Killed {DOTween.KillAll()} tweens!");
+            SaveManager.Instance.Save();
+        }
 
+        public void SetTimeScale(float timeScale)
+        {
+            if(gameState.Value == GameState.PAUSED)
+            {
+                Debug.LogError("Game is paused!");
+                return;
+            }
+            Time.timeScale = timeScale;
+        }
 
     }
 }
